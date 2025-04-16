@@ -2,7 +2,8 @@ import { PlusSmIcon, ArrowRightIcon, UserIcon, CurrencyDollarIcon, GlobeAltIcon 
 import { useEffect, useState } from "react";
 import CreateStudyModal from "../components/modal/CreateStudy.jsx";
 import { useDBContext } from '../contextx/DBContext.js'
-import { useMixedContext } from "../contextx/MixedContext.js";
+import { useXamanContext } from "../contextx/XamanContext.js";
+
 import "./Study.css";
 
 let isLoadingData = false;
@@ -10,8 +11,8 @@ function Studies() {
 	const [data, setData] = useState([]);
 	const [CreatemodalShow, setModalShow] = useState(false);
 	const [Loading, setLoading] = useState(true);
-	const { api, contract, signerAddress, ReadContractByQuery, getMessage, getQuery } = useMixedContext();;
-	const { GetDescription } = useDBContext();
+	const { base } = useDBContext();
+	const {wallet}= useXamanContext();
 	const addStudy = () => {
 		setModalShow(true);
 	};
@@ -22,36 +23,30 @@ function Studies() {
 	});
 
 	async function LoadData() {
-		if (!isLoadingData && contract != null) {
+		if (!isLoadingData && wallet != null) {
 			isLoadingData = true;
 			setLoading(true);
+			const studiesTable = base('studies');
 
-			const totalStudys = await ReadContractByQuery(getQuery("_StudyIds"))
+			const records = await studiesTable.select().all();
+			
+			const newData = records.map( (record) => {
+				
 
-			let arr = [];
-			for (let i = 0; i < Number(totalStudys); i++) {
-				let study_element = await ReadContractByQuery(getQuery("_studyMap"), [i])
-				let allAudiences = [];
-				try {
-					allAudiences = JSON.parse(await ReadContractByQuery(getQuery("_studyAudienceMap"), [i]));
-				} catch (e) { }
+				return({
 
-				let study_description = await GetDescription(study_element.description);
+					id: record.id,
+					title: record.get('title'),
+					image: record.get('image'),
+					description: record.get('description'),
+					contributors: record.get('contributors'),
+					audience: record.get('audience'),
+					budget: record.get('budget'),
+					rewardtype: "XRP"
+				})
+			});
 
-				var newStudy = {
-					id: Number(study_element.studyId),
-					title: study_element.title,
-					image: study_element.image,
-					description: study_description,
-					contributors: Number(study_element.contributors),
-					audience: Number(allAudiences.length),
-					budget: window.ParseBigNum(study_element.budget),
-					rewardtype: study_element.rewardType
-				};
-				arr.push(newStudy)
-			}
-
-			setData(arr);
+			setData(newData);
 			isLoadingData = false;
 			setLoading(false);
 		}
@@ -68,7 +63,7 @@ function Studies() {
 
 		// window.addEventListener("resize", setDimension);
 		LoadData();
-	}, [contract]);
+	}, [wallet]);
 
 	return (
 		<>

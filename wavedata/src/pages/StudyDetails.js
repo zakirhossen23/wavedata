@@ -5,8 +5,8 @@ import { formatDistance } from "date-fns";
 import Form from "react-bootstrap/Form";
 import "./StudyDetails.css";
 import CreateSurveyModal from "../components/modal/CrateSurvey.jsx";
-import {useMixedContext} from "../contextx/MixedContext.js";
 import { useDBContext } from "../contextx/DBContext.js";
+import { useXamanContext } from "../contextx/XamanContext.js";
 
 import UpdateStudyModal from "../components/modal/UpdateStudy.jsx";
 
@@ -14,18 +14,14 @@ function StudyDetails() {
 
 	const params = useParams();
 	const navigate = useNavigate();
-	const {CreateSubject,UpdateSubject,base,GetDescription,CreateDescription} = useDBContext();
-	const { api, contract, signerAddress, sendTransaction,  ReadContractByQuery, getMessage, getQuery } = useMixedContext();;
+	const {CreateSubject,UpdateSubject,UpdateAudience,UpdateReward,base,GetDescription,CreateDescription,UpdateAges,UpdateStudyTitle} = useDBContext();
 	const [tabIndex, setTabIndex] = useState(0);
 	const [UpdatemodalShow, setModalShow] = useState(false);
 	const [CreateSurveymodalShow, setSurveyModalShow] = useState(false);
 	const [LoadingSurvey, setLoadingSurvey] = useState(false);
-	const [agesDescriptionId,setAgesDescriptionId] = useState("");
-	const [titlesDescriptionId,setTitlesDescriptionId] = useState("");
    
-	const [LoadingInformed, setLoadingInformed] = useState(false);
-	const [SelectedContributorId, setSelectedContributorId] = useState(0);
-	const [Selected_ongoing_id, setSelected_ongoing_id] = useState(0);
+
+	const {wallet}= useXamanContext();
 	const [LoadingContributors, setLoadingContributors] = useState(false);
 	const [screenSize, getDimension] = useState({
 		dynamicWidth: window.innerWidth,
@@ -104,10 +100,8 @@ function StudyDetails() {
 	};
 	async function UpdateAgesHandle(event) {
 		DisableButton("AgeSave");
-		let ages_id = await CreateDescription(JSON.stringify(agesData),agesDescriptionId);
-		setAgesDescriptionId(ages_id);
-		await sendTransaction( "UpdateStudyAges", [Number(params.id), ages_id]);
 
+		await UpdateAges(params.id, JSON.stringify(agesData));
 		EnableButton("AgeSave");
 	}
 
@@ -165,6 +159,7 @@ function StudyDetails() {
 		var ButtonElm = document.getElementById(buttonID);
 
 		ButtonElm.disabled = false;
+		ButtonElm.removeAttribute("disabled");
 		ButtonElm.classList.add("hover:bg-gray-600");
 		ButtonElm.classList.add("bg-black");
 		ButtonElm.classList.remove("bg-gray-400");
@@ -174,11 +169,8 @@ function StudyDetails() {
 
 	async function UpdateStudyTitleHandle() {
 		DisableButton("StudyTitleSave");
-		let titles_id = await CreateDescription(JSON.stringify(studyTitle.ages_ans),titlesDescriptionId);
-		setTitlesDescriptionId(titlesDescriptionId);
 		
-		await sendTransaction( "CreateOrSaveStudyTitle", [Number(params.id),titles_id]);
-
+		await UpdateStudyTitle(params.id, JSON.stringify(studyTitle.ages_ans));
 		EnableButton("StudyTitleSave");
 	}
 
@@ -196,7 +188,7 @@ function StudyDetails() {
 				Sex: element.Sex
 			});
 		});
-		await sendTransaction( "UpdateAudience", [parseInt(params.id), JSON.stringify(createdObject)]);
+		await UpdateAudience(params.id, JSON.stringify(createdObject));
 		EnableButton("audienceSave");
 
 	}
@@ -207,7 +199,7 @@ function StudyDetails() {
 		DisableButton("rewardsSave");
 
 		try {
-			await sendTransaction( "UpdateReward", [Number(parseInt(params.id)), rewardselect.value,window.WrapBigNum(Number(rewardprice.value) ), window.WrapBigNum(parseInt(totalspendlimit.value))]);
+			await UpdateReward(params.id, rewardselect.value, Number(rewardprice.value.replace(" XRP", "")), parseInt(totalspendlimit.value.replace(" XRP", "")));
 		} catch (error) {
 			console.error(error);
 		}
@@ -232,62 +224,71 @@ function StudyDetails() {
 	}
 	async function LoadStudyData() {
 
+		const studyDataTable = base('study_data');
+		const records = await studyDataTable.select({
+			filterByFormula: `{study_id} = '${params.id}'`
+		}).firstPage();
 
-		let allAudiences = [];
-		try {
-			allAudiences = JSON.parse(await ReadContractByQuery( getQuery("_studyAudienceMap"), [Number(params.id)]));
-		} catch (e) {
-			allAudiences = [];
+		if (records.length > 0) {
+			const study_element = records[0].fields;
+			const allAudiences = study_element.audiences !== "" ? JSON.parse(study_element.audiences) : [];
+			setAudiences(allAudiences);
+	
+			//Load Ages
+			const ages_Data_element = study_element.ages;
+			setAgesData(!ages_Data_element && ages_Data_element == "" ? [] : JSON.parse(ages_Data_element));
+
+			let study_title_Data_element = study_element.Titles;
+			setStudyTitle({ ages_ans: !study_title_Data_element && study_title_Data_element == "" ? {} : JSON.parse(study_title_Data_element) });
+
+
+			return allAudiences
+
+
+		}else{
+			setAudiences([]);
 		}
-		setAudiences(allAudiences)
 
-		return allAudiences
+		return []
 
 	}
 	async function LoadData() {
 
-		if (contract !== null && api !== null) {
+		if (wallet !== null) {
 			setSTUDY_DATA({});
-			let study_element = await ReadContractByQuery( getQuery("_studyMap"), [Number(params.id)]);
+		
+
+		
+
+		 await LoadStudyData()
 
 
-			let allAges = [];
-			try {
-				if (study_element.ages !== '[]' && study_element.ages !== ''){
-					allAges = JSON.parse(await GetDescription(study_element.ages));
-					setAgesDescriptionId(study_element.ages);
-				}
-			} catch (e) { }
-			setAgesData(allAges)
 
-			let allTitles = { ages_ans: {} };
-			try {
-				if (study_element.titles !== '[]' && study_element.titles !== ''){
-					allTitles.ages_ans = JSON.parse(await GetDescription(study_element.titles));
-					setTitlesDescriptionId(study_element.titles);
-				}
-			} catch (e) { }
+			const studyTable = base('studies');
 
-			setStudyTitle(allTitles)
+			const studyRecord = await studyTable.find(params.id);
+	
+			if (studyRecord !== null) {
+				const study_element = studyRecord.fields;
+	
+	
+	
+				var newStudy = {
+					id: studyRecord.id,
+					title: study_element.title,
+					image: study_element.image,
+					description: study_element.description,
+					contributors: Number(study_element.contributors),
+					audience: Number(study_element.audience),
+					budget: Number(study_element.budget),
+					reward_type: "XRP",
+					reward_price: Number(study_element.reward_price),
+					total_spending_limit: Number(study_element.total_spending_limit)
+				};
+	
+				setSTUDY_DATA(newStudy);
+			}
 
-			let allAudiences = await LoadStudyData()
-
-
-			let study_description = await GetDescription(study_element.description);
-
-			var newStudy = {
-				id: Number(study_element.studyId),
-				title: study_element.title,
-				image: study_element.image,
-				description: study_description,
-				contributors: Number(study_element.contributors),
-				audience: Number(allAudiences.length),
-				budget: window.ParseBigNum(study_element.budget),
-				reward_type: study_element.rewardType,
-				reward_price: window.ParseBigNum(study_element.rewardPrice),
-				total_spending_limit: window.ParseBigNum(study_element.totalSpendingLimit) 
-			};
-			setSTUDY_DATA(newStudy);
 		}
 	}
 
@@ -406,53 +407,57 @@ function StudyDetails() {
 	}
 
 	async function isSurveyCompleted(user_id, survey_id) {
-		// let completed_survey_tables = base("completed_surveys");
-		// let all_completed_surveys = await (completed_survey_tables.select({ filterByFormula: "{study_id} = '" + params.id + "'" })).firstPage()
+		let completed_survey_tables = base("completed_surveys");
+		let all_completed_surveys =await ( completed_survey_tables.select({filterByFormula:"{study_id} = '"+ params.id +"'"})).firstPage()
 
-		// for (let i = 0; i < all_completed_surveys.length; i++) {
-		// 	let completed_survey_element = all_completed_surveys[i].fields;
-		// 	if ((completed_survey_element.survey_id) === (survey_id) && user_id === completed_survey_element.user_id) {
-		// 		return true;
-		// 	}
+		for (let i = 0; i < all_completed_surveys.length; i++) {
+			let completed_survey_element = all_completed_surveys[i].fields;
+			if ( (completed_survey_element.survey_id) == (survey_id) && user_id == completed_survey_element.user_id) {
+				return true;
+			}
 
-		// }
+		}
 		return false;
 	}
 
 	async function LoadDataSurvey(contributes = null) {
-		if (contract !== null && api !== null) {
+		if (wallet !== null) {
 			if (!LoadingSurvey) {
 				if (contributes === null) contributes = contributors;
 				setLoadingSurvey(true);
 				let survey_data = []
 				setData([]);
-				const totalSurveys = await ReadContractByQuery( getQuery("_SurveyIds"));
 
 				try {
-					for (let i = 0; i < Number(totalSurveys); i++) {
-						let survey_element = await ReadContractByQuery( getQuery("_surveyMap"), [i]);
+					const surveysTable = base('surveys');  
+					const records = await surveysTable.select({
+						filterByFormula: `{study_id} = '${params.id}'`
+					}).firstPage();
+			
+			
+					for (let i = 0; i < Number(records.length); i++) {
+						let record = records[i];
+						let survey_element = record.fields;
 
 						var new_survey = {
-							id: Number(survey_element.surveyId),
-							study_id: Number(survey_element.studyId),
-							user_id: Number(survey_element.userId),
+							id: record.id,
+							study_id: (survey_element.study_id),
+							user_id: (survey_element.user_id),
 							name: survey_element.name,
-							description: await GetDescription( survey_element.description),
+							description: survey_element.description,
 							date: survey_element.date,
 							image: survey_element.image,
-							reward: window.ParseBigNum(survey_element.reward),
+							reward: Number(survey_element.reward),
 							submission: Number(survey_element?.submission),
 							completed: {
 
 							}
 						};
-						if (parseInt(params.id) === new_survey.study_id) {
-							for (let iC = 0; iC < contributes.length; iC++) {
-								const element = contributes[iC];
-								new_survey.completed[element.user_id] = await isSurveyCompleted(element.user_id, new_survey.id);
-							}
-							survey_data.push(new_survey);
+						for (let iC = 0; iC < contributes.length; iC++) {
+							const element = contributes[iC];
+							new_survey.completed[element.user_id] = await isSurveyCompleted(element.user_id, new_survey.id);
 						}
+						survey_data.push(new_survey);
 					}
 				} catch (ex) { }
 
@@ -463,39 +468,29 @@ function StudyDetails() {
 	}
 
 	async function LoadDataContributors() {
-		if (contract !== null && api !== null) {
+		if (wallet !== null) {
 			setLoadingContributors(true);
+			let new_contributors = [];
 			setContributors([]);
-			let arr = [];
-
-			const totalOngoing = await ReadContractByQuery( getQuery("_OngoingIds"));
-
-			for (let i = 0; i < Number(totalOngoing); i++) {
-				let element = await ReadContractByQuery( getQuery("_ongoingMap"), [parseInt(i)]);
-				let user_element = await ReadContractByQuery( getQuery("getUserDetails"), [Number(element.userId)]);
-				let fhir_element = await ReadContractByQuery( getQuery("_fhirMap"), [Number(user_element[6])]);
-
-				if (Number(element.studyId) === parseInt(params.id)) {
-					arr.push({
-						id: i,
-						user_id: Number(element.userId),
-						name: user_element[2],
-						family_name: fhir_element.familyName,
-						givenname: fhir_element.givenName,
-						identifier: fhir_element.identifier,
-						phone: fhir_element.phone,
-						gender: fhir_element.gender,
-						about: fhir_element.about,
-						patient_id: fhir_element.patientId,
-						joined: element.date
-					})
-
+			let ongoingStudiesTable = base("ongoing_studies");
+			let filterByFormula = `{study_id} = '${params.id}'`
+			let allUsers = await ongoingStudiesTable.select({filterByFormula:filterByFormula}).firstPage();
+	
+			for (let i = 0; i < Number(allUsers.length); i++) {
+	
+				const element = allUsers[i].fields;
+			
+				new_contributors.push({
+					id: i,
+					user_id: (element.user_id),
+					joined: element.date
 				}
+				);
 			}
-			setContributors(arr);
+			setContributors(new_contributors);
+	
 			setLoadingContributors(false);
-
-			return arr;
+			return new_contributors;
 		}
 		return []
 
@@ -643,7 +638,7 @@ function StudyDetails() {
 
 		// window.addEventListener("resize", setDimension);
 		LoadData();
-	}, [contract, api]);
+	}, [wallet]);
 
 	useEffect(() => {
 		if (tabIndex === 4) {
@@ -655,7 +650,7 @@ function StudyDetails() {
 		} else if (tabIndex === 0) {
 			LoadStudyData();
 		}
-	}, [tabIndex, api]);
+	}, [tabIndex, wallet]);
 	return (
 		<>
 			<div style={{ zoom: screenSize.dynamicWidth < 760 ? 0.8 : 1 }} className="bg-white border border-gray-400 rounded-lg py-4 px-6 flex mb-2 items-center">

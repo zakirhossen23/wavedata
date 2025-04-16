@@ -5,13 +5,13 @@ import Airtable from 'airtable';
 import { error } from 'jquery';
 
 
-const Token = "patQvXPSOwdPxJ37f.246be6a5d6659407e4e40a4dc35095c7c9ddc312fd981f2d5b0305dc8dd48e12";
-var base = new Airtable({ apiKey: Token }).base('appdP1KvBGkbsess3');
+const Token = "pat4RYunmalqQFY84.73d0a61af81f5b214aaff9f6f0aabf5ee29bcd3bd57ca1c20480f8588d38946f";
+var base = new Airtable({ apiKey: Token }).base('app0lHXAgzrs0kCXQ');
 
 const AppContext = createContext({
     CheckEmail: async () => { },
     CreateAccount: async () => { },
-    Login: async () => { },
+    Login: async (email, password) => { },
     CreateDescription: async (description,id="") => { },
     UpdateDescription: async (id, description) => { },
     GetDescription: async (id) => "",
@@ -56,7 +56,7 @@ export function DBProvider({ children }) {
     }
 
     // Function to create a new user account in Airtable
-    async function CreateAccount(full_name, email, password) {
+    async function CreateAccount(full_name, email, password,wallet) {
         try {
             const usersTable = base('users');
             await usersTable.create({
@@ -65,6 +65,7 @@ export function DBProvider({ children }) {
                 "password": password,
                 "image": "https://i.postimg.cc/SsxGw5cZ/person.jpg",
                 "credits": 0,
+                "walletaddress":wallet
             });
             console.log('User record created successfully in Airtable!');
         } catch (error) {

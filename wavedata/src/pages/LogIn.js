@@ -2,17 +2,17 @@ import Cookies from "js-cookie";
 import { useNavigate, useLocation } from "react-router-dom";
 import {useState, useEffect} from "react";
 import logoicon from "../assets/wave-data-logo.svg";
-import {web3Enable, isWeb3Injected, web3Accounts} from "@polkadot/extension-dapp";
-import {useMixedContext} from "../contextx/MixedContext.js";
+import {useDBContext} from "../contextx/DBContext.js";
+import { useXamanContext } from "../contextx/XamanContext.js";
 
 import "./Login.css";
 
 
 function Login() {
 	let navigate = useNavigate();
-	const {api, contract, signerAddress, sendTransaction, ReadContractByQuery, getMessage, getQuery} = useMixedContext();
-	const [isPolkadotConnected, setisPolkadotConnected] = useState(false);
-	const [isSolanaConnected, setisSolanaConnected] = useState(false);
+	const {CheckEmail,Login} = useDBContext();
+	const {SignInXaman,wallet}= useXamanContext();
+	const [isXamanConnected, setisXamanConnected] = useState(false);
 
 	window.onload = (e) => {
 		if (Cookies.get("login") ==="true") {
@@ -24,32 +24,15 @@ function Login() {
 		navigate("/register", { replace: true });
 	}
 
-	async function onClickConnect(type) {
-		if (type === 1) {
-			const polkadot = await import("@polkadot/extension-dapp");
+	async function onClickConnect() {
+		await SignInXaman();
 
-			await polkadot.web3Enable("WaveData");
-			const allAccounts = await polkadot.web3Accounts();
-			if (allAccounts[0] != null) {
-				setisPolkadotConnected(true);
-				window.localStorage.setItem("type", "polkadot");
-				window.location.reload();
-			} else {
-				setisPolkadotConnected(false);
-			}
+		if (wallet != null) {
+			setisXamanConnected(true);
+			window.localStorage.setItem("type", "xaman");
+			window.location.reload();
 		} else {
-			if (typeof window.solflare !== "undefined") {
-				await window.solflare.connect();
-				if (window.solflare.isConnected) {
-					window.localStorage.setItem("type", "solana");
-					setisSolanaConnected(true);
-					window.location.reload();
-				} else {
-					setisSolanaConnected(false);
-				}
-			}else{
-				window.open("https://chromewebstore.google.com/detail/solflare-wallet/bhhhlbepdkbapadjdnnojkbgioiodbic","_about");
-			}
+			setisXamanConnected(false);
 		}
 	}
 
@@ -74,7 +57,7 @@ function Login() {
 			return;
 		}
 		try {
-			const result = await ReadContractByQuery( getQuery("CheckEmail"), [emailTXT.value]);
+			const result = await CheckEmail(emailTXT.value);
 
 			if (result?.toString() ==="False") {
 				FailedNotification.innerText = "Email is not valid";
@@ -83,7 +66,7 @@ function Login() {
 				LoadingICON.style.display = "none";
 				return;
 			}
-			let userid = await ReadContractByQuery( getQuery("Login"), [emailTXT.value, passwordTXT.value]);
+			let userid = await Login(emailTXT.value, passwordTXT.value);
 
 			if (userid !="False") {
 				LoadingICON.style.display = "none";
@@ -108,27 +91,24 @@ function Login() {
 			FailedNotification.style.display = "none";
 			FailedNotification.innerText = "Error! Please try again!";
 		}
-		event.target.disabled = false;
+		event.target.removeAttribute("disabled");
 	}
 
 	useEffect(() => {
 		async function check() {
 			var buttonTextBox = document.getElementById("buttonText");
 			var LoadingICON = document.getElementById("LoadingICON");
-			if (window.localStorage.getItem("type") === "polkadot") {
-				await web3Enable("WaveData");
-				setisPolkadotConnected(true);
-			} else if (window.localStorage.getItem("type") === "solana") {
-				setisSolanaConnected(true);
-			}
-			if (isPolkadotConnected || isSolanaConnected) {
+			if (wallet !=	null) {
+				setisXamanConnected(true);
+			} 
+			if (isXamanConnected ) {
 				LoadingICON.style.display = "none";
 				buttonTextBox.style.display = "block";
 			}
 		}
 
 		check();
-	}, [contract]);
+	}, [wallet]);
 
 	return (
 		<div className="min-h-screen grid-cols-2 flex">
@@ -155,7 +135,7 @@ function Login() {
 							Password
 							<input type="password" id="password" name="password" className="mt-2 h-10 border border-gray-200 rounded-md outline-none px-2 focus:border-gray-400" />
 						</label>
-						{isPolkadotConnected || isSolanaConnected ? (
+						{isXamanConnected  ? (
 							<>
 								<button
 									onClick={LoginClick}
@@ -169,20 +149,13 @@ function Login() {
 							<>
 								<button
 									onClick={(e) => {
-										onClickConnect(1);
+										onClickConnect();
 									}}
 									className="bg-orange-500 text-white rounded-md shadow-md h-10 w-full mt-3 hover:bg-orange-600 transition-colors overflow:hidden flex content-center items-center justify-center cursor-pointer"
 								>
-									<span id="buttonText">Connect Polkadot</span>
+									<span id="buttonText">Connect Xaman</span>
 								</button>
-								<button
-									onClick={(e) => {
-										onClickConnect(2);
-									}}
-									className="bg-orange-500 text-white rounded-md shadow-md h-10 w-full mt-3 hover:bg-orange-600 transition-colors overflow:hidden flex content-center items-center justify-center cursor-pointer"
-								>
-									<span id="buttonText">Connect Solana</span>
-								</button>
+								
 							</>
 						)}
 

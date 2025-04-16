@@ -3,7 +3,7 @@ import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import { CurrencyDollarIcon } from "@heroicons/react/solid";
-import {useMixedContext} from "../../contextx/MixedContext.js";
+import { useXamanContext } from "../../contextx/XamanContext.js";
 import { useDBContext } from '../../contextx/DBContext.js';
 
 export default function UpdateStudyModal({
@@ -11,9 +11,9 @@ export default function UpdateStudyModal({
     onHide,
     id
 }) {
-    const {  api,contract, signerAddress, sendTransaction,ReadContractByQuery,getMessage,getQuery,getTX } = useMixedContext();;
-    const {GetDescription,UpdateDescription} = useDBContext();
-    const [descriptionId,setDescriptionId] = useState("");
+  
+    const {UpdateStudy,base} = useDBContext();
+    const {wallet}= useXamanContext();
    
     async function UpdateStudyHandle(e) {
         e.preventDefault();
@@ -25,8 +25,7 @@ export default function UpdateStudyModal({
         updateBTN.disabled = true;
 
         try {
-            await UpdateDescription(descriptionId,description.value);
-            await sendTransaction( "UpdateStudy",[Number(id),image.value,title.value,descriptionId, window.WrapBigNum(parseInt(budget.value))]);
+            await UpdateStudy(Number(id), image.value, title.value, description.value, parseInt(budget.value));
             
             notificationSuccess.style.display = "block";
             updateBTN.children[0].classList.add("hidden")
@@ -48,25 +47,34 @@ export default function UpdateStudyModal({
     }
 
     async function LoadData() {
-        if (typeof window?.contract !== 'undefined' && api !== null) {
+        if (wallet !== null) {
             try {
-                let study_element = await ReadContractByQuery( getQuery("_studyMap"), [parseInt(id)]);
-                setDescriptionId(study_element.description);
-                let descriptionText = await GetDescription(study_element.description);
-
-                var newStudy = {
-                    id: Number(study_element.studyId),
-                    title: study_element.title,
-                    image: study_element.image,
-                    description: descriptionText,
-                    contributors: Number(study_element.contributors),
-                    audience: Number(study_element.audience),
-                    budget: window.ParseBigNum(study_element.budget) 
-                };
-                document.getElementById("updatetitle").value = newStudy.title
-                document.getElementById("updatedescription").value = newStudy.description
-                document.getElementById("updateimage").value = newStudy.image
-                document.getElementById("updatebudget").value = newStudy.budget
+                const studyTable = base('studies');
+                const studyRecord = await studyTable.find(id);
+                if (studyRecord !== null) {
+                    const study_element = studyRecord.fields;
+                    var newStudy = {
+                        id: studyRecord.id,
+                        title: study_element.title,
+                        image: study_element.image,
+                        description: study_element.description,
+                        contributors: Number(study_element.contributors),
+                        audience: Number(study_element.audience),
+                        budget: Number(study_element.budget),
+                        reward_type: study_element.reward_type,
+                        reward_price: Number(study_element.reward_price),
+                        total_spending_limit: Number(study_element.total_spending_limit)
+                    };
+                    
+                    if ( document.getElementById("updatetitle")){
+                        document.getElementById("updatetitle").value = newStudy.title
+                        document.getElementById("updatedescription").value = newStudy.description
+                        document.getElementById("updateimage").value = newStudy.image
+                        document.getElementById("updatebudget").value = newStudy.budget
+        
+                    }
+                }
+        
             }catch(e){}
 
            
@@ -76,7 +84,7 @@ export default function UpdateStudyModal({
 
     useEffect(async () => {
         await LoadData();
-    }, [api])
+    }, [wallet])
 
     return (
         <Modal
@@ -121,7 +129,7 @@ export default function UpdateStudyModal({
                             <span className="input-group-addon text-sm pt-2 pb-2 pl-3 pr-3 font-normal -mr-1 leading-none text-gray-700 text-center bg-gray-200 border-gray-400 border rounded">
                                 <CurrencyDollarIcon className="w-5 h-5 text-gray-500" />
                             </span>
-                            <input required name="budget" placeholder="Budget" id="updatebudget" type='number' className="w-24 text-black pr-2 border-gray-400 border pl-2" />
+                            <input required name="budget"  placeholder="Budget" id="updatebudget" type='number' className="w-24 text-black pr-2 border-gray-400 border pl-2" />
                         </div>
                     </Form.Group>
                     <div className="d-grid">
